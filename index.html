@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام غيابات المرحلة الثانية - تقنيات التخدير | Ki-ATTEND</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="./manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        body { font-family: 'Cairo', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col justify-between">
+
+    <!-- Header / Branding & Controls -->
+    <header class="bg-gray-800 border-b border-gray-700 shadow-lg p-4">
+        <div class="container mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
+            
+            <div class="flex items-center gap-4">
+                <div class="relative group">
+                    <img src="logo.png" alt="شعار قسم تقنيات التخدير" 
+                         class="w-14 h-14 object-contain rounded-xl shadow-lg border border-gray-600 bg-gray-900/80 p-1 transition-transform duration-300 group-hover:scale-105"
+                         onerror="this.style.display='none'">
+                    <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-gray-800 rounded-full animate-pulse"></span>
+                </div>
+                <div>
+                    <h1 class="text-base lg:text-lg font-bold tracking-wide text-white">كلية التقنيات الصحية والطبية - قسم تقنيات التخدير (المرحلة الثانية)</h1>
+                    <p class="text-xs text-blue-400 font-semibold">System Architect & Developer: ki | © 2026 All Rights Reserved</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Connection Status Badge -->
+                <div id="connection-status" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white shadow">
+                    متصل (Online)
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-medium text-gray-300">المادة:</label>
+                    <select id="subjectSelect" class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 text-white">
+                        <option>Basic of Anesthesia (1)[cite: 16]</option>
+                        <option>Basic of Anesthesia Equipments (1)[cite: 16]</option>
+                        <option>Basic of Surgery (1)[cite: 16]</option>
+                        <option>Basic of Medicine (1)[cite: 16]</option>
+                        <option>Applied Physiology (1)[cite: 16]</option>
+                        <option>Pharmacology (1)[cite: 16]</option>
+                        <option>Computer & AI (نظري فقط)</option>
+                        <option>جرائم البعث[cite: 16]</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-medium text-gray-300">النوع:</label>
+                    <select id="lectureTypeSelect" onchange="updateTheme(); renderTable();" class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none text-white">
+                        <option value="theory">🟠 نظري (المرحلة كاملة)</option>
+                        <option value="g1">🟡 عملي - Group 1</option>
+                        <option value="g2">🟡 عملي - Group 2</option>
+                    </select>
+                </div>
+
+                <button onclick="exportToCSV()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow">
+                    <i class="fa-solid fa-file-excel"></i> تصدير Excel
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content & Analytics -->
+    <main class="container mx-auto px-4 py-8 flex-grow">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-sm">
+                <p class="text-sm text-gray-400">إجمالي الطلبة في السجل</p>
+                <h3 class="text-2xl font-bold mt-1 text-white" id="totalStudents">181[cite: 15]</h3>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-sm">
+                <p class="text-sm text-gray-400">متوسط نسب الحضور العامة</p>
+                <h3 class="text-2xl font-bold mt-1 text-green-400" id="avgAttendance">100%</h3>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-sm">
+                <p class="text-sm text-gray-400">الطلاب في خطر الإنذار</p>
+                <h3 class="text-2xl font-bold mt-1 text-yellow-400" id="warningCount">0</h3>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-sm">
+                <p class="text-sm text-gray-400">الطلاب المحرومون</p>
+                <h3 class="text-2xl font-bold mt-1 text-red-400" id="droppedCount">0</h3>
+            </div>
+        </div>
+
+        <!-- Live Search Bar -->
+        <div class="mb-6 bg-gray-800 p-4 rounded-xl border border-gray-700 shadow flex items-center gap-3">
+            <i class="fa-solid fa-magnifying-glass text-blue-400"></i>
+            <input type="text" id="searchInput" oninput="renderTable()" placeholder="ابحث عن اسم الطالب أو الكود الجامعي..." 
+                   class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <!-- Attendance Data Table -->
+        <div class="bg-gray-800 rounded-2xl border border-gray-700 shadow-xl overflow-hidden">
+            <div id="tableHeaderBar" class="p-4 border-b border-gray-700 flex justify-between items-center bg-orange-900/30 transition-colors duration-300">
+                <h2 class="text-base font-bold flex items-center gap-2" id="tableTitleText">
+                    <i class="fa-solid fa-table-cells text-orange-400"></i> سجل المتابعة الأسبوعية (القسم النظري)
+                </h2>
+                <div class="text-xs text-orange-300 font-mono bg-orange-950/50 px-3 py-1 rounded-lg border border-orange-700/50" id="modeIndicator">
+                    النظام: نظري (كل المرحلة)
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[550px] overflow-y-auto">
+                <table class="w-full text-right border-collapse">
+                    <thead class="sticky top-0 bg-gray-700 z-10">
+                        <tr class="text-gray-300 text-xs uppercase border-b border-gray-600">
+                            <th class="p-3 text-center w-16">التسلسل</th>
+                            <th class="p-3">كود الطالب</th>
+                            <th class="p-3">اسم الطالب الثلاثي</th>
+                            <th class="p-3 text-center">أ 1</th>
+                            <th class="p-3 text-center">أ 2</th>
+                            <th class="p-3 text-center">أ 3</th>
+                            <th class="p-3 text-center">أ 4</th>
+                            <th class="p-3 text-center">أ 5</th>
+                            <th class="p-3 text-center">أ 6</th>
+                            <th class="p-3 text-center">أ 7</th>
+                            <th class="p-3 text-center">أ 8</th>
+                            <th class="p-3 text-center">حضور</th>
+                            <th class="p-3 text-center">غياب</th>
+                            <th class="p-3 text-center">النسبة</th>
+                            <th class="p-3 text-center">الموقف / القرار</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700 text-sm" id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 py-4 text-center text-xs text-gray-400">
+        <p>Ki Integrated Attendance System &bull; Designed & Developed by <span class="text-blue-400 font-bold">ki</span> &bull; All Rights Reserved © 2026[cite: 15]</p>
+    </footer>
+
+    <!-- Scripts & Logic -->
+    <script>
+        // تسجيل Service Worker بأمان
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            });
+        }
+
+        // إعدادات Supabase (يمكن ربطها مباشرة هنا عند توفر الروابط)
+        const SUPABASE_URL = ''; 
+        const SUPABASE_ANON_KEY = '';
+        let supabase = null;
+        
+        try {
+            if (window.supabase && SUPABASE_URL.startsWith('http')) {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.log('Local Mode Active');
+        }
+
+        function updateConnectionStatus(msg, isOnline) {
+            const statusEl = document.getElementById('connection-status');
+            if (statusEl) {
+                statusEl.innerText = msg;
+                statusEl.className = isOnline 
+                    ? "px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white shadow" 
+                    : "px-3 py-1.5 rounded-lg text-xs font-semibold bg-yellow-600 text-white shadow";
+            }
+        }
+
+        window.addEventListener('online', () => { updateConnectionStatus("متصل (Online)", true); syncOfflineQueue(); });
+        window.addEventListener('offline', () => updateConnectionStatus("غير متصل (Offline)", false));
+
+        // قائمة الطلاب (181 طالباً)[cite: 15]
+        const studentsNames = [
+            "ابتهال ضياء غضبان عبد الحسن", "ابرار عبد الرزاق انس عبد الرزاق", "ابرار عبدالله خليل عبد علي", "اثيل قاسم عبد فيصل", "احمد علي جاسم عبد الحسين عريبي", "اروى صباح نجم عبدالله", "اساور وسام فالح مهدي", "اسماء حازم كاظم بجاي", "اسيل عواد ربيد حمود", "اسيل هشام مجيد رشيد",
+            "افنان مضر كامل سلمان", "الكوثر محمد خلف احمد", "ام البنين جمعه عبد العباس علوان", "ام البنين عبدالرضا عبدالرزاق عذيب", "ام البنين كريم جبار فهد", "ام البنين مصطفى عليوي وادي", "ايات غني بهلول عبدالحسن", "ايلاف علي قاسم عشاو", "ايه امجد عزيز زغير", "ايه شعبان فالح نعمه",
+            "ايه وليد عبدالكريم يابر", "أطوار خالد كاظم الهيد", "بتول احسان كاظم حسن", "بتول حمزه كاظم جبر", "بنين احمد داود سلمان", "بنين جاسم محمد ياسين", "تبارك احمد نبيش سروال", "تبارك جواد طالب جاسم", "تبارك عبدالكريم كحيط حبيب", "جنة مهند طه رشيد",
+            "حربي ثائر حربي عبد الكاظم", "حسين باسم سالم عطار", "حسين ستار جبار خنيفر", "ياسمين احمد قاسم محمد", "حسين عيسى جاسم جابر", "حسين مهدي حسن ثجيل", "حسين نعمه خزعل عبد الحسين", "حسين هاني حمدان عاشور", "حمزه باسل عاشور طارش", "حنان حسن فالح لعيبي",
+            "حوراء احمد محيبس عبد", "حوراء حسين فاخر عاشور", "حوراء علي فالح قريش", "حوراء عمار عذيب عمير", "حوراء مهدي صالح طعمه", "دعاء بدر حسين جبار", "ديمة هشام علي مزبان", "رانيا عماد شيحان محمد", "رسل قاسم عبد بدر", "رسل محمد حميد لفته",
+            "رقية ثائر صباح زبون", "رقية مهدي عبد الكريم كاصد", "يوسف حيدر عبد الحسين ماضي", "رقيه جميل مكي يوسف", "رقيه صلاح حسن معيدي", "رقيه ضياء محسن حفيت", "رقيه محمد عبد علي كشمر", "رقيه محمد علي محمدحسن", "رنا باسل هاشم منهل", "روان موفق حسين طاهر",
+            "زهراء اسامه بريسم خير الله", "زهراء اسعد عبد الله حسون", "زهراء حسين قاسم بندر", "زهراء رياض محمد رياض", "زهراء سالم سوادي هاشم", "زهراء صادق علي فرحان", "زهراء صلاح مهدي صالح", "زهراء عادل طاهر سلمان", "زهراء عباس فاضل محمد", "زهراء عبد الستار جبار عزيز",
+            "زهراء علاء عبدالاله حسن", "زهراء علي حسين عبد", "زهراء قاسم فاضل محمد", "زهراء قاسم محمد جياد", "زهراء قاسم محمدصالح علي", "زهراء كاظم حسين عبود", "زهراء محمد حمزه عباس", "زهراء محمد صيوان صباح", "زهراء محمد فالح حسن", "زهراء مشتاق صبري عبدالرضا",
+            "زهراء مقداد علي ابو الهيل", "زهراء هود عبد الجبار عبود", "زينب ثائر غازي مظلوم", "زينب جاسم قاسم محسن", "زينب جاسم منشد عبد الرضا", "زينب حبيب حسين مهدي", "زينب حسنين كريم بريسم", "زينب حسين حديد يوسف", "زينب ستار جبار محمد", "زينب عباس مطشر ارحيم",
+            "زينب علي يعقوب كاظم", "زينب مالك شرقي محمد", "زينب محمد ضيدان حبش", "زينب محمد يونس مهدي", "زينب منذر باشخ حبيب", "زينب مهدي صالح حاتم", "زينب ميثم خميس قاسم", "زينب ميثم مجيد فداغ", "سارة احمد جواد كاظم", "سارة حازم كاظم علوان",
+            "ساره حسين جبار فهد", "ساره ليث سالم خلف", "سبأ حمد عبد الكريم حسين", "سبأ قاسم عيدان مطر", "سجاد عبد الامير حسن خيون", "سجى احمد نعيم خزعل", "سجى سلام صالح علي", "سكينه وهب صالح مهدي", "سمانه ابراهيم غازي جالي", "سناء مهدي صالح مهدي",
+            "شمس احمد حسين دهر", "شهد علاء بناي زبيري", "صفا عادل وحيد كاظم", "صفا عماد حسين علي", "ضحى محمد منهل لفته", "ضرغام محمود رحيم ياسين", "طيبه حسين احيال كاظم", "طيبه سعد علي كاظم", "عباس رؤوف ارباط علي", "عبير احمد غضبان عيدان",
+            "علي صفاء نجف نجم", "علي ظافر جواد عيسى", "علي قيس حافظ كعيد", "علي ماجد مهاوي حسين", "فاطمة احمد هادي عبد السادة", "فاطمه جازع خلف جازع", "فاطمه جعفر عوده رشيد", "فاطمه خضير شكبان هوير", "فاطمه سمير حميد عبد الحسن", "فاطمه صافي جوده طاهر",
+            "فاطمه صلاح نعيم حميد", "فاطمه عادل كامل خضير", "فاطمه عبد الحسين عطيه مهاوش", "فاطمه قحطان يونس خزعل", "فاطمه منخي عبدعلي محمد", "فاطمه مهدي شبوط حليحل", "فدك الزهراء محمد صبري عاشور", "فرح طالب عبد الوهاب صالح", "فرح عمار قاسم عباس", "كرار سعد صالح شنيار",
+            "كوثر جواد كاظم مهدي", "كوثر حيدر خيرالله علوان", "كوثر منصور عبدالمعين هاشم", "مجتبى فرقد حميد مكشف", "محمد حيدر عبدالكريم سالم", "محمد سامي عبد الكريم وادي", "مرتضى هادي خير الله حسين", "مروه جواد كاظم عبود", "مروه عامر شنيشل صلبوخ", "مريم موسى كاظم عيسى",
+            "مسار منعم رزوقي كاظم", "مسلم علاء كاظم حيدر", "ملاك حسن عبدالرسول حسن", "ملوك محمد صبيح علوان", "منار احمد عبدالحسين علي", "منار مؤيد عيدان عبدالزهره", "موسى محمد حسن عبدالله", "مؤمل اياد عبدالعالي ثامر", "مؤمل عايد بدر خضير", "مؤمل عقيل كاظم جواد",
+            "ميريام نصار اسماعيل فارس", "ميمونه موفق محمد لعيبي", "نادين رعد نعمه رحيم", "نادين عادل ماجد فالح", "نبأ جاسم اسماعيل عبد الكريم", "نبأ ضياء جاسم محمد", "نبأ عادل عبد الكريم مطلك", "نبأ عارف رزوقي جمعه", "نبأ فرحان موحي حمادي", "نور الزهراء جاسم سعيد صبيح",
+            "نور الهدى اسعد رشيد شاهين", "نور الهدى وسام شبر عبد العظيم", "نور رعد لطيف فتيح", "نور عمر محيل ناسي", "نور مهند كاظم جمعه", "هادي عماد جواد كاظم", "هبه هاشم طالب ناصر", "هديل احمد عثمان عمر", "هديل بشير خضير فايز", "هنا اسامة ناصر هاشم", "وديان حسين رياض عبود"
+        ];
+
+        let studentsData = studentsNames.map((name, i) => ({
+            id: i + 1,
+            code: (2026260 + i).toString(),
+            name: name,
+            weeks: [1, 1, 1, 1, 1, 1, 1, 1]
+        }));
+
+        function updateTheme() {
+            const type = document.getElementById('lectureTypeSelect').value;
+            const headerBar = document.getElementById('tableHeaderBar');
+            const titleText = document.getElementById('tableTitleText');
+            const modeIndicator = document.getElementById('modeIndicator');
+
+            if (type === 'theory') {
+                headerBar.className = "p-4 border-b border-gray-700 flex justify-between items-center bg-orange-900/30 transition-colors duration-300";
+                titleText.innerHTML = `<i class="fa-solid fa-table-cells text-orange-400"></i> سجل المتابعة الأسبوعية (القسم النظري)`;
+                modeIndicator.innerText = "النظام: نظري (كل المرحلة)";
+                modeIndicator.className = "text-xs text-orange-300 font-mono bg-orange-950/50 px-3 py-1 rounded-lg border border-orange-700/50";
+            } else {
+                headerBar.className = "p-4 border-b border-gray-700 flex justify-between items-center bg-yellow-900/30 transition-colors duration-300";
+                const groupName = type === 'g1' ? 'Group 1' : 'Group 2';
+                titleText.innerHTML = `<i class="fa-solid fa-table-cells text-yellow-400"></i> سجل المتابعة الأسبوعية (القسم العملي - ${groupName})`;
+                modeIndicator.innerText = `النظام: عملي (${groupName})`;
+                modeIndicator.className = "text-xs text-yellow-300 font-mono bg-yellow-950/50 px-3 py-1 rounded-lg border border-yellow-700/50";
+            }
+        }
+
+        // دالة عرض وتصفية الجدول بذكاء وسرعة فائقة
+        function renderTable() {
+            try {
+                const tbody = document.getElementById('tableBody');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+
+                const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+                
+                let totalWarnings = 0;
+                let totalDropped = 0;
+                let totalPresenceSum = 0;
+                let visibleCount = 0;
+                let totalPossibleMarks = studentsData.length * 8;
+
+                studentsData.forEach((student, index) => {
+                    // تطبيق محرك البحث الحي
+                    if (searchQuery && !student.name.toLowerCase().includes(searchQuery) && !student.code.includes(searchQuery)) {
+                        return;
+                    }
+                    visibleCount++;
+
+                    const presentCount = student.weeks.reduce((a, b) => a + b, 0);
+                    const absentCount = 8 - presentCount;
+                    const absenceRate = (absentCount / 8) * 100;
+                    totalPresenceSum += presentCount;
+
+                    let statusHtml = absentCount <= 1 ? '<span class="text-green-400 font-semibold">منتظم</span>' :
+                                   absentCount === 2 ? '<span class="text-yellow-400 font-semibold">تنبيه أول</span>' :
+                                   absentCount === 3 ? '<span class="text-orange-400 font-semibold">إنذار نهائي</span>' :
+                                   '<span class="text-red-400 font-semibold">محروم</span>';
+
+                    if(absentCount === 2 || absentCount === 3) totalWarnings++;
+                    if(absentCount >= 4) totalDropped++;
+
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-800 transition";
+                    
+                    let weeksHtml = '';
+                    student.weeks.forEach((val, wIndex) => {
+                        const badgeClass = val === 1 ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-red-600 text-white hover:bg-red-700';
+                        weeksHtml += `
+                            <td class="p-2 text-center">
+                                <button onclick="toggleAttendance(${index}, ${wIndex})" class="w-8 h-8 rounded-lg font-bold text-xs transition shadow ${badgeClass}">
+                                    ${val}
+                                </button>
+                            </td>
+                        `;
+                    });
+
+                    tr.innerHTML = `
+                        <td class="p-3 text-center font-mono text-gray-400">${index + 1}</td>
+                        <td class="p-3 font-mono text-blue-400 text-xs">${student.code}</td>
+                        <td class="p-3 font-medium text-white">${student.name}</td>
+                        ${weeksHtml}
+                        <td class="p-3 text-center font-semibold text-green-400">${presentCount}</td>
+                        <td class="p-3 text-center font-semibold text-red-400">${absentCount}</td>
+                        <td class="p-3 text-center font-mono text-gray-300">${absenceRate.toFixed(1)}%</td>
+                        <td class="p-3 text-center">${statusHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('totalStudents').innerText = studentsData.length;
+                document.getElementById('warningCount').innerText = totalWarnings;
+                document.getElementById('droppedCount').innerText = totalDropped;
+                document.getElementById('avgAttendance').innerText = ((totalPresenceSum / totalPossibleMarks) * 100).toFixed(1) + '%';
+            } catch (err) {
+                console.error("Error in renderTable:", err);
+            }
+        }
+
+        async function toggleAttendance(studentIndex, weekIndex) {
+            const student = studentsData[studentIndex];
+            student.weeks[weekIndex] = student.weeks[weekIndex] === 1 ? 0 : 1;
+            renderTable();
+
+            const subject = document.getElementById('subjectSelect').value;
+            const lectureType = document.getElementById('lectureTypeSelect').value;
+
+            const payload = {
+                student_code: student.code,
+                subject: subject,
+                lecture_type: lectureType,
+                week_index: weekIndex + 1,
+                status_value: student.weeks[weekIndex],
+                updated_at: new Date().toISOString()
+            };
+
+            saveToLocalQueue(payload);
+
+            if (supabase && navigator.onLine) {
+                try {
+                    await supabase.from('attendance_records').upsert([payload], { onConflict: 'student_code,subject,lecture_type,week_index' });
+                } catch (e) {
+                    console.log('Cloud sync pending');
+                }
+            }
+        }
+
+        function saveToLocalQueue(payload) {
+            let queue = JSON.parse(localStorage.getItem('ki_offline_queue') || '[]');
+            queue = queue.filter(item => 
+                !(item.student_code === payload.student_code && 
+                  item.subject === payload.subject && 
+                  item.lecture_type === payload.lecture_type && 
+                  item.week_index === payload.week_index)
+            );
+            queue.push(payload);
+            localStorage.setItem('ki_offline_queue', JSON.stringify(queue));
+        }
+
+        async function syncOfflineQueue() {
+            if (!supabase) return;
+            let queue = JSON.parse(localStorage.getItem('ki_offline_queue') || '[]');
+            if (queue.length > 0) {
+                const { error } = await supabase.from('attendance_records').upsert(queue, { onConflict: 'student_code,subject,lecture_type,week_index' });
+                if (!error) {
+                    localStorage.removeItem('ki_offline_queue');
+                    console.log('Synced successfully!');
+                }
+            }
+        }
+
+        function exportToCSV() {
+            let csvContent = "\uFEFFالتسلسل,كود الطالب,اسم الطالب,أسبوع 1,أسبوع 2,أسبوع 3,أسبوع 4,أسبوع 5,أسبوع 6,أسبوع 7,أسبوع 8,إجمالي الحضور,إجمالي الغياب,نسبة الغياب\n";
+            studentsData.forEach((s, idx) => {
+                const present = s.weeks.reduce((a,b)=>a+b,0);
+                const absent = 8 - present;
+                const rate = ((absent/8)*100).toFixed(1) + '%';
+                csvContent += `${idx+1},${s.code},"${s.name}",${s.weeks.join(',')},${present},${absent},${rate}\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `ki_attendance_report_${document.getElementById('subjectSelect').value}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // تشغيل مباشر ومضمون فور تحميل سكريبت المتصفح
+        renderTable();
+        updateTheme();
+    </script>
+</body>
+</html>
